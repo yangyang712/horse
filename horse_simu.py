@@ -13,18 +13,19 @@ class Simulator:
         self.gain = 0
         self.correct_count = 0
         self.total_count = 0
-        self.datas = pd.read_csv(path )
+        self.datas = pd.read_csv(path)
         self.datas['ID'] = self.datas['ID'].apply(lambda x: str(x))
         self.datas[['corner1_diff','corner2_diff','corner3_diff','corner4_diff']] = self.datas[['corner1_diff','corner2_diff','corner3_diff','corner4_diff']].apply(lambda x: round(x,2))
         self.id_list = list(set(self.datas['ID'].to_list()))
         #print(self.id_list[:10])
         #print(self.id_list)
-        self.races_result = pd.read_csv('harai1.csv' )
+        self.races_result = pd.read_csv('harai4.csv')
         self.races_result['ID'] = self.races_result['ID'].apply(lambda x: str(x))
         #出力用データフレーム
         self.output_data = pd.DataFrame()
         self.output_result = pd.DataFrame()
         #print(self.datas.head())
+        print('init done')
 
     def get_race_data(self,id):
         #print(self.datas[self.datas['ID'] == int(id)])
@@ -35,6 +36,10 @@ class Simulator:
     def get_race_result(self,id):
         self.race_result = self.races_result[self.races_result['ID'] == id]
         self.output_result = pd.concat([self.output_result,self.race_result])
+        if(len(self.race_result)==0):
+            print('haraiにレースデータが含まれません')
+            return 0
+        #一部払い戻しデータが欠損している
         #単勝の整形
         try:
             self.race_result[self.race_result['kind'] == '単勝'].iat[0,3] = int(self.race_result[self.race_result['kind'] == '単勝'].iat[0,3].replace(',',''))
@@ -82,6 +87,18 @@ class Simulator:
             print('id:{3}で{0}で{1}にかけて{2}払い戻し'.format( Simulator.kind_names[kind_i],number,gain,self.id))
         self.cost += 100
         self.total_count += 1
+    def buy_ticket2(self,id,kind_i,number):
+        #モデルで予測した結果をもとにシミュレーションする
+        self.get_race_data(id)
+        self.get_race_result(id)
+        gain = self.race_result[(self.race_result['kind'] == Simulator.kind_names[kind_i])&(self.race_result['number'] == str(number))]
+        if len(gain) > 0:
+            gain = gain.iat[0,3]
+            self.gain += int(gain)
+            self.correct_count += 1
+            print('id:{3}で{0}で{1}にかけて{2}払い戻し'.format( Simulator.kind_names[kind_i],number,gain,self.id))
+        self.cost += 100
+        self.total_count += 1
 
     #一番人気の単勝に賭ける
     def buy_all_1(self):
@@ -89,10 +106,13 @@ class Simulator:
             #必要なレース情報をセットする
             self.get_race_data(id)
             self.get_race_result(id)
+    
             col = self.race_data[self.race_data['人気'] == 1]
-            number = col.at[col.index.values[0],'馬番']
-            #print(number)
-            self.buy_ticket(0,number)
+            #なんかたまに一番人気がいないことがある
+            if(len(col) != 0):
+                number = col.at[col.index.values[0],'馬番']
+                #print(number)
+                self.buy_ticket(0,number)
     
     #複勝
     def buy_all_2(self):
@@ -135,7 +155,8 @@ class Simulator:
         print("総額:{0}円 購入額:{1}円 利益{2}円 回収率{3}% 的中率{4}%".format(self.gain,self.cost,self.gain - self.cost,round(self.gain*100/self.cost,2),round(self.correct_count*100/self.total_count,2)))
 
 if __name__ == '__main__':
-    path = 'result2019.csv'
+    #path = 'result2019.csv'
+    path = 'race_data.csv'
     id = '201902020202'
     simu = Simulator(path)
     #race_data = pd.DataFrame()
@@ -145,5 +166,6 @@ if __name__ == '__main__':
     #race_data.to_csv('temp.csv',index= False)
     #race_rsult.to_csv('temp_result.csv',index=False)
     #simu.buy_ticket(0,12)
-    simu.buy_all_wide()
+    #simu.buy_all_wide()
+    simu.buy_all_1()
     simu.print_info()
